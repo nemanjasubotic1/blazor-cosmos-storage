@@ -1,4 +1,4 @@
-# Blazor Server App with Authentication, Authorization, and Azure Storage
+# Blazor Server App with Authentication, Authorization, Azure CosmosDb and Azure Storage
 
 This repository demonstrates a Blazor Server application built with .NET 8, showcasing authentication, authorization, and Cloud storage and CosmosDb simple integration with Azure.
 
