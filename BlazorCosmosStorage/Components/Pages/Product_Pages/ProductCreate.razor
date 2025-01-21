@@ -1,0 +1,157 @@
+﻿@page "/product/create"
+
+@rendermode InteractiveServer
+
+@inject IProductService _ProductCosmosService
+@inject NavigationManager _NavigationManager
+@inject BlobService _BlobService
+
+@if (IsProcessing)
+{
+    <div style="display: flex; justify-content: center; align-items: center; height: 50vh;">
+        <div class="spinner-grow text-primary" role="status">
+        </div>
+    </div>
+}
+else
+{
+    <div class="card shadow border-0 mt-4">
+        <div class="card-header bg-body-secondary bg-gradient ml-0 py-3">
+            <div class="row">
+                <div class="col-12 text-center">
+                    <h4 class="py-2">Create Category</h4>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-4">
+            <EditForm FormName="CategoryUpsertForm" Model="Product" OnValidSubmit="CreateCategory">
+                <DataAnnotationsValidator />
+
+                <div class="border p-3 mt-4">
+                    <div class="form-floating mb-3 col-12">
+                        <InputText @bind-Value="Product.Name" class="form-control" id="Name" placeholder="Name..." />
+                        <label for="Name" class="form-label">Name</label>
+                        <ValidationMessage For="@(() => Product.Name)" class="text-danger" />
+                    </div>
+                    <div class="form-floating mb-3 col-12">
+                        <InputText @bind-Value="Product.Description" class="form-control" id="Name" placeholder="Description..." />
+                        <label for="Description" class="form-label">Description</label>
+                        <ValidationMessage For="@(() => Product.Description)" class="text-danger" />
+                    </div>
+                    <div class="form-floating mb-3 col-12">
+                        <InputText @bind-Value="Product.MainKey" class="form-control" id="MainKey" placeholder="MainKey..." />
+                        <label for="MainKey" class="form-label">Main Key</label>
+                        <ValidationMessage For="@(() => Product.MainKey)" class="text-danger" />
+                    </div>
+                    <div class="form-floating mb-3 col-12">
+                        <InputFile OnChange="UploadFile" class="form-control" id="customFile" accept="image/x-png, image/jpeg">
+                        </InputFile>
+                        <label for="customFile" class="form-label">Upload image</label>
+                    </div>
+                    <div class="form-floating mb-3 col-12">
+                        @if (!string.IsNullOrEmpty(fileFullPath))
+                        {
+                            <div class="row pt-3">
+                                <div class="col-md-9">
+                                    <i class="bi bi-trash btn btn-outline-danger" @onclick="RemoveImage">Remove</i>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-3 col-md-3">
+                            <button type="submit" class="btn btn-primary form-control" disabled="@IsProcessing">
+                                <i class="bi bi-floppy"></i> Save
+                            </button>
+                        </div>
+                        <div class="col-3 col-md-3">
+                            <a href="product/list" class="btn btn-secondary form-control" disabled="@IsProcessing">
+                                <i class="bi bi-arrow-90deg-left"></i> Back to list
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private bool IsProcessing { get; set; } = false;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; }
+
+    [SupplyParameterFromForm]
+    private Product Product { get; set; } = new();
+
+    private string fileFullPath = string.Empty;
+
+    private IBrowserFile? File;
+
+    private async Task CreateCategory()
+    {
+        IsProcessing = true;
+
+        Product.Id = Guid.NewGuid().ToString();
+
+        if (!string.IsNullOrEmpty(fileFullPath) && File != null)
+        {
+            try
+            {
+                await _BlobService.UploadFileAsync(fileFullPath, File);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error uploading to Storage Account: {ex.Message}");
+                throw;
+            }
+        }
+
+        try
+        {
+
+            var authState = await AuthenticationState;
+            var user = authState.User;
+            var nameIdentifier = user.FindFirst(ClaimTypes.NameIdentifier).Value;
+
+            Product.ImageUrl = fileFullPath;
+            Product.UserId = nameIdentifier;
+
+            await _ProductCosmosService.AddItemAsync(Product);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving to Cosmos Db: {ex.Message}");
+            throw;
+        }
+
+        fileFullPath = string.Empty;
+        File = null;
+
+        IsProcessing = false;
+
+        _NavigationManager.NavigateTo("product/list");
+    }
+
+    private void UploadFile(InputFileChangeEventArgs e)
+    {
+        IsProcessing = true;
+
+        File = e.File;
+
+        var filePath = File.Name + Guid.NewGuid();
+        var directoryPath = DateTime.Now.ToString("yyyy-MM-dd");
+
+        fileFullPath = $"{directoryPath}/{filePath}";
+
+        IsProcessing = false;
+    }
+
+    private void RemoveImage()
+    {
+        fileFullPath = string.Empty;
+        StateHasChanged();
+    }
+}

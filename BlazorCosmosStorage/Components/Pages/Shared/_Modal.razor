@@ -1,0 +1,30 @@
+﻿
+<div id="confirmationModal" class="modal fade" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Deletion confirmation</h5>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want delete a product?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal" @onclick="() => ConfirmDelete(false)">Close</button>
+                <button type="button" class="btn btn-danger" @onclick="() => ConfirmDelete(true)">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+@code {
+
+    [Parameter]
+    public EventCallback<bool> OnDeletionConfirm { get; set; }
+
+    private async Task ConfirmDelete(bool isConfrimed)
+    {
+        await OnDeletionConfirm.InvokeAsync(isConfrimed);
+    }
+}

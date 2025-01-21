@@ -1,0 +1,29 @@
+﻿@page "/account/logout"
+
+@inject SignInManager<ApplicationUser> _SignInManager
+@inject NavigationManager _NavigationManager
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body flex-column">
+                <div class="text-center mt-2">
+                    <span class="text-primary fw-bolder">
+                        Logging out...
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@code {
+
+    protected override async Task OnInitializedAsync()
+    {
+        await _SignInManager.SignOutAsync();
+
+        _NavigationManager.NavigateTo("/", true);
+    }
+}

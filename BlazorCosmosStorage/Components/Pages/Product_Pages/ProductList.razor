@@ -1,0 +1,143 @@
+﻿@page "/product/list"
+@rendermode InteractiveServer
+
+@inject IProductService _ProductCosmosService
+@inject IJSRuntime _JSRuntime
+@inject BlobService _BlobService
+
+
+<_Modal OnDeletionConfirm="ConfirmDelete">
+
+</_Modal>
+
+@if (IsProcessing)
+{
+    <div style="display: flex; justify-content: center; align-items: center; height: 50vh;">
+        <div class="spinner-grow text-primary" role="status">
+        </div>
+    </div>
+}
+else
+{
+    <div class="card shadow border-0 m-4">
+        <div class="card-header bg-body-secondary bg-gradient m-lg-0 py-3">
+            <div class="col-12 text-center">
+                <h4 class="py-2">Products</h4>
+            </div>
+        </div>
+        <div class="card-body p-4">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var prod in products)
+                    {
+                        <tr>
+                            <td>@prod.Name</td>
+                            <td>@prod.Description</td>
+                            <td>
+                                <a href="@($"product/update/{prod.Id}/{prod.MainKey}")" class="btn btn-outline-primary">
+                                    Edit
+                                </a>
+                                <button class="btn btn-danger" @onclick="() => HandleDelete(prod.Id, prod.MainKey, prod.ImageUrl)">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private bool IsProcessing { get; set; } = true;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationState { get; set; }
+
+    private IEnumerable<Product> products = [];
+
+    private string productId = string.Empty;
+
+    private string partitionKey = string.Empty;
+
+    private string imageUrl = string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadProducts();
+            IsProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadProducts()
+    {
+        var authState = await AuthenticationState;
+        var user = authState.User;
+        var userId = user.FindFirst(ClaimTypes.NameIdentifier).Value;
+
+        if (!string.IsNullOrEmpty(userId))
+        {
+            products = await _ProductCosmosService.GetAllAsync($"select * from c where c.UserId='{userId}'");
+        }
+        else
+        {
+            products = new List<Product>();
+        }
+    }
+
+    private async Task HandleDelete(string id, string partitionKey, string imageUrl)
+    {
+
+        this.productId = id;
+        this.partitionKey = partitionKey;
+        this.imageUrl = imageUrl;
+
+        await _JSRuntime.InvokeVoidAsync("showConfirmationModal");
+    }
+
+    private async void ConfirmDelete(bool isConfirmed)
+    {
+        IsProcessing = true;
+
+        await _JSRuntime.InvokeVoidAsync("hideConfirmationModel");
+
+        if (isConfirmed && productId != "" && partitionKey != "")
+        {
+            var result = await _ProductCosmosService.DeleteProductAsync(productId, partitionKey);
+
+            // delete blob also if exist
+            if (!string.IsNullOrEmpty(imageUrl))
+            {
+                await _BlobService.DeleteFileAsync(imageUrl);
+            }
+
+            if (result)
+            {
+                await LoadProducts();
+            }
+            else
+            {
+                Console.WriteLine("Error while deleting product.");
+            }
+        }
+
+        IsProcessing = false;
+
+        productId = "";
+        partitionKey = "";
+
+        StateHasChanged();
+    }
+
+}

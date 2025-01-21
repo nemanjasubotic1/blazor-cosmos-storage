@@ -1,0 +1,187 @@
+﻿@page "/product/update/{id}/{make}"
+@rendermode InteractiveServer
+
+@inject IProductService _ProductCosmosService
+@inject NavigationManager _NavigationManager
+@inject BlobService _BlobService
+
+
+@if (IsProcessing)
+{
+    <div style="display: flex; justify-content: center; align-items: center; height: 50vh;">
+        <div class="spinner-grow text-primary" role="status">
+        </div>
+    </div>
+}
+else
+{
+    <div class="card shadow border-0 m-4">
+        <div class="card-header bg-body-secondary bg-gradient ml-0 py-3">
+            <div class="row">
+                <div class="col-12 text-center">
+                    <h4 class="py-2">Update Product @Product.Name</h4>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-4">
+            <EditForm FormName="ProductForm" Model="Product" OnValidSubmit="UpdateProduct">
+                <div class="form-floating mb-3 col-12">
+                    <InputText @bind-Value="Product.Name" class="form-control" id="Name" />
+                    <label for="Name" class="form-label">Name</label>
+                </div>
+                <div class="form-floating mb-3 col-12">
+                    <InputText @bind-Value="Product.Description" class="form-control" id="Description" />
+                    <label for="Description" class="form-label">Description</label>
+                </div>
+                <div class="form-floating mb-3 col-12">
+                    <InputText @bind-Value="Product.MainKey" class="form-control" id="MainKey" readonly />
+                    <label for="MainKey" class="form-label">Main Key</label>
+                </div>
+                <div class="form-floating mb-3 col-12">
+                    @if (!string.IsNullOrEmpty(imageUrl))
+                    {
+                        <div class="row pt-3">
+                            <div class="col-3">
+                                <img src="@imageUrl" alt="..." class="img-thumbnail" />
+                            </div>
+                            <div class="col-md-9">
+                                <i class="bi bi-trash btn btn-outline-danger" @onclick="RemoveImage">Remove</i>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="form-floating mb-3 col-12">
+                            <InputFile OnChange="UploadFile" class="form-control" id="customFile" accept="image/x-png, image/jpeg">
+                            </InputFile>
+                            <label for="customFile" class="form-label">Upload image</label>
+                        </div>
+                    }
+                </div>
+                <div class="row mt-3">
+                    <div class="col-3 col-md-3">
+                        <button type="submit" class="btn btn-primary form-control" disabled="@IsProcessing">
+                            <i class="bi bi-floppy"></i> Save
+                        </button>
+                    </div>
+                    <div class="col-3 col-md-3">
+                        <a href="product/list" class="btn btn-secondary form-control" disabled="@IsProcessing">
+                            <i class="bi bi-arrow-90deg-left"></i> Back to list
+                        </a>
+                    </div>
+                </div>
+
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+
+    private bool IsProcessing { get; set; } = true;
+
+    private string imageUrl = string.Empty;
+
+    private IBrowserFile? File;
+    private string fileFullPath = string.Empty;
+
+    [SupplyParameterFromForm]
+    private Product Product { get; set; }
+
+    [Parameter]
+    public string id { get; set; }
+    [Parameter]
+    public string make { get; set; }
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+
+        if (firstRender)
+        {
+            await GetProduct();
+            IsProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    public async Task GetProduct()
+    {
+
+        if (id == null || make == null)
+        {
+            id = "0";
+            make = "0";
+        }
+
+        Product = await _ProductCosmosService.GetProductAsync(id, make);
+
+        if (!string.IsNullOrEmpty(Product.ImageUrl))
+        {
+            imageUrl = _BlobService.GetFileWithSas(Product.ImageUrl);
+        }
+
+        if (Product == null)
+        {
+            Console.WriteLine("Product is null");
+            Product = new();
+        }
+    }
+
+    private async Task UpdateProduct()
+    {
+
+        if (string.IsNullOrEmpty(imageUrl) && !string.IsNullOrEmpty(Product.ImageUrl))
+        {
+            try
+            {
+                await _BlobService.DeleteFileAsync(Product.ImageUrl);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting blob: {ex.Message}");
+                throw;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(fileFullPath) && File != null)
+        {
+            try
+            {
+                await _BlobService.UploadFileAsync(fileFullPath, File);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error uploading to Storage Account: {ex.Message}");
+                throw;
+            }
+        }
+
+        Product.ImageUrl = fileFullPath;
+        await _ProductCosmosService.UpdateProductAsync(Product.MainKey, Product);
+
+        _NavigationManager.NavigateTo("product/list");
+    }
+
+
+    private void RemoveImage()
+    {
+        imageUrl = "";
+        StateHasChanged();
+    }
+
+    private void UploadFile(InputFileChangeEventArgs e)
+    {
+        IsProcessing = true;
+
+        File = e.File;
+
+        var filePath = File.Name;
+        var directoryPath = DateTime.Now.ToString("yyyy-MM-dd");
+
+        fileFullPath = $"{directoryPath}/{filePath}";
+
+        IsProcessing = false;
+    }
+
+}
