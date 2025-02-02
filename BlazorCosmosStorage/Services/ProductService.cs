@@ -4,7 +4,6 @@ using Microsoft.FeatureManagement;
 
 namespace BlazorCosmosStorage.Services;
 
-
 public class ProductService : IProductService
 {
     private readonly CosmosClient _cosmosClient;

@@ -29,15 +29,8 @@ builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-})
-  .AddCookie(options =>
-  {
-      options.Cookie.HttpOnly = true;
+}).AddCookie();
 
-      options.LoginPath = "/account/login";
-      options.LogoutPath = "/account/logout";
-      options.AccessDeniedPath = "/account/accessdenied";
-  });
 
 builder.Services.AddAuthorization();
 
